@@ -217,8 +217,6 @@ def send_sms():
     for k in range(wind_energy.shape[0]):
         text_wind = text_wind + str(wind_energy.loc[k,'date']) +": Predicted Energy " +str(wind_energy.loc[k, 'Wind_Energy_Predicted'])+"; "
 
-
-
     message = client.messages \
                     .create(
                         body="Thanks to have a look at your dashboard, it has been updated! " +
@@ -359,7 +357,7 @@ wind_weather = updated_data_wind()
 
 for key in range(solar_weather.shape[0]):
     if (solar_weather.loc[key, 'Solar_Energy_Predicted'] + wind_weather.loc[key,'Wind_Energy_Predicted'] <= 4):
-        raise  sms_alert()
+        raise  ValueError(sms_alert())
 
 """ Create a function to generate a table of dataframe on a table"""
 
