@@ -72,9 +72,44 @@ def callback():
 
     return flask.redirect("/")
 
+# @app.server.route('/upload')
+# def upload_filer():
+#    return render_template('/')
+	
+@app.server.route('/uploader', methods = ['GET', 'POST'])
+def upload_file():
+    if request.method == 'POST':
+        f = request.files['the_file']
+        f.save('/var/www/uploads/uploaded_file.csv')
+        print('file uploaded successfully')
+        return flask.redirect('/')
 
-# Create and endpoint to predict solar energy
-# @app.server.route('/solar_predict', methods =['GET']) # Your API endpoint URL would consist /predict
+# Load data from the disk
+KR =joblib.load('wind_finalized_model.pkl')
+
+""" Create a function to give energy delivers each day of the current week. """
+
+# Create a function to predict wind energy each day of the week.
+def wind_predict():
+    if KR:
+        try:
+            data_df = wind_model.get_wind_weather()
+            data_df1 = data_df[['wind speed', 'direction']]
+            f_scaler = StandardScaler()
+            data_df2 = f_scaler.fit_transform(data_df1) 
+
+            prediction = KR.predict(data_df2)
+            scaler_pred= np.round(y_scaler_wind.inverse_transform(prediction.flatten()), 2)
+            scaler_pred = list(scaler_pred)
+            return scaler_pred, data_df
+        except:
+            raise ValueError(traceback.format_exc()) 
+    else:
+        print ('Train the model first')
+        raise ValueError('No model here to use')
+
+
+# Create a function to predict solar energy each day of the week.
 def solar_predict():
     if regr:
         try:
@@ -96,68 +131,15 @@ def solar_predict():
         raise ValueError('No model here to use')
 
 
-# Create an endpoint to send an sms.
-@app.server.route('/send_sms', methods =['GET'])
-def send_sms():
-    account_sid = key_twilio_sms() 
-    auth_token = key_token_sms()
-    client = Client(account_sid, auth_token)
+""" Create a function to give energy delivers each day of the current week and store 
+the result weather condition in a dataframe. """
 
-    message = client.messages \
-                    .create(
-                        body="Thanks for having a look at your dashboard it has been updated!",
-                        from_='+12055484082',
-                        to='+237696269326'
-                    )
-    message = message.sid
-    return message
-
-# @app.server.route('/upload')
-# def upload_filer():
-#    return render_template('/')
-	
-@app.server.route('/uploader', methods = ['GET', 'POST'])
-def upload_file():
-    if request.method == 'POST':
-        f = request.files['the_file']
-        f.save('/var/www/uploads/uploaded_file.csv')
-        print('file uploaded successfully')
-        return flask.redirect('/')
-
-# Load data from the disk
-KR =joblib.load('wind_finalized_model.pkl')
-
-# Create and endpoint to predict wind energy
-# @app.server.route('/wind_predict', methods=['GET']) # Your API endpoint URL would consist /predict
-def wind_predict():
-    if KR:
-        try:
-            data_df = wind_model.get_wind_weather()
-            data_df1 = data_df[['wind speed', 'direction']]
-            f_scaler = StandardScaler()
-            data_df2 = f_scaler.fit_transform(data_df1) 
-
-            prediction = KR.predict(data_df2)
-            scaler_pred= np.round(y_scaler_wind.inverse_transform(prediction.flatten()), 2)
-            scaler_pred = list(scaler_pred)
-            return scaler_pred, data_df
-        except:
-            raise ValueError(traceback.format_exc()) 
-    else:
-        print ('Train the model first')
-        raise ValueError('No model here to use')
-
-
-
-#@app.server.route("/predict_day_wind", methods=['GET'])
 def predict_day_wind():
     prediction1, wind_weather = wind_predict()
     wind_weather['Wind_Energy_Predicted'] = prediction1
     return wind_weather
 
 
-
-#@app.server.route("/predict_day_solar", methods=['GET'])
 def predict_day_solar():
     prediction,  solar_weather = solar_predict()
     solar_weather['Solar_Energy_Predicted'] = prediction
@@ -184,6 +166,8 @@ def get_key_wind(val):
   
     return "key doesn't exist"
 
+""" Create a function to give energy delivers after having applied maintenance system information. """
+
 def updated_data_solar():
     
     solar_farm = default_data_solar.to_dict()
@@ -199,6 +183,8 @@ def updated_data_solar():
 solar_weather = updated_data_solar()
 df_solar = solar_weather[['date', 'Day', 'Solar', 'Cloud Cover Percentage','Rainfall in mm', 'Temp Avg', 'Solar_Energy_Predicted']] 
 
+""" Create a function to give energy delivers after having applied maintenance system information. """
+
 def updated_data_wind():
     wind_farm = default_data_wind.to_dict()
 
@@ -211,8 +197,40 @@ def updated_data_wind():
     return wind_weather
 
 wind_weather = updated_data_wind()
-#wind_weather =pd.DataFrame()
 df_wind = wind_weather[['date', 'Day','wind speed', 'direction','Wind_Energy_Predicted']]
+
+"""Create an endpoint to send a recap sms of the dashboard."""
+
+@app.server.route('/send_sms', methods =['GET'])
+def send_sms():
+    account_sid = key_twilio_sms() 
+    auth_token = key_token_sms()
+    client = Client(account_sid, auth_token)
+
+    text_solar =" "
+    solar_energy = updated_data_solar()[['date', "Solar_Energy_Predicted"]]
+    for k in range(solar_energy.shape[0]):
+        text_solar = text_solar + str(solar_energy.loc[k,'date']) +": Predicted Energy " +str(solar_energy.loc[k, 'Solar_Energy_Predicted'])+"; "
+
+    text_wind = " "
+    wind_energy = updated_data_wind()[['date', "Wind_Energy_Predicted"]]
+    for k in range(wind_energy.shape[0]):
+        text_wind = text_wind + str(wind_energy.loc[k,'date']) +": Predicted Energy " +str(wind_energy.loc[k, 'Wind_Energy_Predicted'])+"; "
+
+
+
+    message = client.messages \
+                    .create(
+                        body="Thanks to have a look at your dashboard, it has been updated! " +
+                        "As for now the solar predicted energy for the current week is give as follow " +
+                        text_solar+ ". And the wind predicted energy is given as " + text_wind + '.',
+                        from_='+12055484082',
+                        to='+237696269326'
+                    )
+    message = message.sid
+    return message
+
+"""Create a scatter plot to show the result of precdition energy."""
 
 def show_graph():
 
@@ -318,6 +336,32 @@ def plot_energy():
         )
     )
     return figure
+
+# Send message of exception if energy of solar +Wind plant is less or equal to 4:
+def sms_alert():
+    account_sid = key_twilio_sms() 
+    auth_token = key_token_sms()
+    client = Client(account_sid, auth_token)
+
+    message = client.messages \
+                    .create(
+                        body="Alert: Attention!!! This is to prevent you are expose to sanction for the amount of energy delivered.",
+                        from_='+12055484082',
+                        to='+237696269326'
+                    )
+    message = message.sid
+    return message
+
+""" Send and SMS each time the result of the sum of energy of solar +Wind plant will be less or equal than for."""
+
+solar_weather = updated_data_solar()
+wind_weather = updated_data_wind()
+
+for key in range(solar_weather.shape[0]):
+    if (solar_weather.loc[key, 'Solar_Energy_Predicted'] + wind_weather.loc[key,'Wind_Energy_Predicted'] <= 4):
+        raise  sms_alert()
+
+""" Create a function to generate a table of dataframe on a table"""
 
 def generate_table(dataframe, max_rows=10):
     return html.Table([
@@ -512,69 +556,6 @@ def update_error(contents):
             study_data = default_data_solar
         
     return error_status, error_message
-
-
-# Callback to generate study data
-@app.callback(Output("plot", "figure"),
-            [Input("chart-type", "value")],
-            [State("upload-data", "contents"), State("error", "data")],
-        )
-def update_output(chart_type, day, content, error):
-    if day is None:
-        return {}
-
-    if error or not content:
-        solar_farm = default_data_solar
-    else:
-        content_type, content_string = content.split(",")
-        decoded = base64.b64decode(content_string)
-        solar_farm= pd.read_csv(io.StringIO(decoded.decode("utf-8")))
-
-    solar_farm = solar_farm.to_dict()
-
-    solar_weather = predict_day_solar()
-    for (k, day) in solar_farm['Date Of Month'].items():
-        if solar_weather.loc[k, "Day"] == day:
-            solar_weather.replace(solar_weather.loc[k,'Solar_Energy_Predicted'], np.round(solar_weather.loc[k, 'Solar_Energy_Predicted']*(100 - solar_farm['Capacity Available'][k])/100, 2), inplace = True)
-           
-    df_solar = solar_weather[['date', 'Day', 'Solar', 'Cloud Cover Percentage','Rainfall in mm', 'Temp Avg', 'Solar_Energy_Predicted']],  
-    df_wind = wind_weather[['date', 'Day','wind speed', 'direction','Wind_Energy_Predicted']],
-   
-    #fig = go.Figure()
-    #fig = make_subplots(rows=1, cols=2)
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=df_solar['Day'],
-                y=df_solar['Solar_Energy_Predicted'],
-                name='Solar Energy Predicted',
-                marker=dict(color='#3498db')
-            ),
-            go.Bar(
-                x=df_wind['Day'],
-                y=df_wind['Wind_Energy_Predicted'],
-                name='Wind Energy Predicted',
-                marker=dict(color='#FF03F2')
-            )
-        ]
-    #layout=go.Layout(title='Evolution of Energy Solar with time')
-    )
-    fig.update_layout(
-                autosize=False,
-                width=500,
-                height=500,
-                margin=dict(
-                    l=50,
-                    r=50,
-                    b=100,
-                    t=100,
-                    pad=4
-                )
-    #layout=go.Layout(title='Evolution of Energy Solar with time')
-    )
-    return fig
-    #pyo.plot(fig)
-
 
 
 # add a click to the appropriate store.
