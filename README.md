@@ -48,8 +48,7 @@ Successfully attempting the extra credit question automatically gives you full m
 To run this app first clone repository and then open a terminal to the app folder.
 
 ```
-git clone https://github.com/plotly/dash-sample-apps.git
-cd dash-sample-apps/apps/studybrowser
+git clone https://github.com/Michy01/AppDevAIIP.git
 ```
 
 Create and activate a new virtual environment (recommended) by running
